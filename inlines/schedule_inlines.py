@@ -3,7 +3,7 @@ from datetime import datetime
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 
-async def get_scheduled_tasks_inline(tasks):
+async def get_scheduled_tasks_inline(tasks: list) -> InlineKeyboardMarkup:
     weekdays = {
         '0': 'Пн.',
         '1': 'Вт.',

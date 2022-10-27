@@ -6,4 +6,3 @@ storage = MemoryStorage()
 
 bot = Bot(token=TELEGRAM_TOKEN)
 dp = Dispatcher(bot, storage=storage)
-

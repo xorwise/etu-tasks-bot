@@ -18,7 +18,7 @@ from asyncio import sleep
 from .other import menu
 
 
-async def create_task(callback, state: FSMContext):
+async def create_task(callback):
     await TaskState.subject.set()
     user = await get_user(callback.from_user.id)
     group = user['group']
@@ -47,7 +47,7 @@ async def get_subject(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-async def get_description(message: types.Message, state=FSMContext):
+async def get_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
         data['photos'] = []
@@ -201,12 +201,7 @@ async def update_photos(callback: types.CallbackQuery, state: FSMContext):
     await UpdateTaskState.photos.set()
     async with state.proxy() as data:
         data['id'] = callback['data'].split('id=')[-1]
-    button1 = InlineKeyboardButton('Да', callback_data='Да')
-    button2 = InlineKeyboardButton('Нет', callback_data='Нет')
-    inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2)
-    await callback.message.delete()
-    await callback.message.answer('Вы хотите оставить старые изображения?', reply_markup=inline_buttons)
-    await callback.answer()
+    await photo_verification(callback)
 
 
 async def get_verification(callback: types.CallbackQuery, state: FSMContext):
@@ -223,11 +218,6 @@ async def get_verification(callback: types.CallbackQuery, state: FSMContext):
             'Отправьте фото и нажмите на кнопку: Пропустить\n Или нажмите на кнопку сразу, если отправлять фото нет необходимости.',
             reply_markup=inline_buttons)
     await callback.answer()
-
-
-async def get_updated_photo(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['photos'].append(message.photo[-1].file_id)
 
 
 async def update_skip(callback: types.CallbackQuery, state: FSMContext):
@@ -450,11 +440,7 @@ async def update_solution(callback: types.CallbackQuery):
 
 
 async def update_solution_description(callback: types.CallbackQuery, state: FSMContext):
-    task_id = callback['data'].split('?')[1].replace('id=', '')
-    solution_number = int(callback['data'].split('?')[2].replace('number=', ''))
-    async with state.proxy() as data:
-        data['task_id'] = task_id
-        data['number'] = solution_number
+    task_id, solution_number = await get_basic_task_data(callback, state)
     await UpdateSolutionState.description.set()
     await callback.message.delete()
     inline_buttons = InlineKeyboardMarkup(row_width=2).add(InlineKeyboardButton('Отмена', callback_data=f'/cancel_sol_update?id={task_id}?number={solution_number}'))
@@ -477,17 +463,26 @@ async def post_updated_solution_description(message: types.Message, state: FSMCo
 
 async def update_solution_photos(callback: types.CallbackQuery, state: FSMContext):
     await UpdateSolutionState.photos.set()
-    task_id = callback['data'].split('?')[1].replace('id=', '')
-    solution_number = int(callback['data'].split('?')[2].replace('number=', ''))
-    async with state.proxy() as data:
-        data['task_id'] = task_id
-        data['number'] = solution_number
+    await get_basic_task_data(callback, state)
+    await photo_verification(callback)
+
+
+async def photo_verification(callback):
     button1 = InlineKeyboardButton('Да', callback_data='Да')
     button2 = InlineKeyboardButton('Нет', callback_data='Нет')
     inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2)
     await callback.message.delete()
     await callback.message.answer('Вы хотите оставить старые изображения?', reply_markup=inline_buttons)
     await callback.answer()
+
+
+async def get_basic_task_data(callback, state):
+    task_id = callback['data'].split('?')[1].replace('id=', '')
+    solution_number = int(callback['data'].split('?')[2].replace('number=', ''))
+    async with state.proxy() as data:
+        data['task_id'] = task_id
+        data['number'] = solution_number
+    return task_id, solution_number
 
 
 async def get_solution_verification(callback: types.CallbackQuery, state: FSMContext):
@@ -527,11 +522,7 @@ async def cancel_solution_update(callback: types.CallbackQuery, state: FSMContex
 
 
 async def delete_solution(callback: types.CallbackQuery, state: FSMContext):
-    task_id = callback['data'].split('?')[1].replace('id=', '')
-    solution_number = int(callback['data'].split('?')[2].replace('number=', ''))
-    async with state.proxy() as data:
-        data['task_id'] = task_id
-        data['number'] = solution_number
+    await get_basic_task_data(callback, state)
     await DeleteSolutionState.verify.set()
     button1 = InlineKeyboardButton('Да', callback_data='/verify')
     button2 = InlineKeyboardButton('Нет', callback_data='/cancel')
@@ -558,7 +549,7 @@ async def get_delete_verification(callback: types.CallbackQuery, state: FSMConte
 
 async def command_create_task(message: types.Message):
     await message.delete()
-    await create_task(message, None)
+    await create_task(message)
 
 
 async def command_show_tasks(message: types.Message):

@@ -1,10 +1,10 @@
-from services.users import name_validation, group_validation, is_sender_validation
+from services.users import name_validation, group_validation
 from aiogram import types, Dispatcher
 from aiogram.types import ReplyKeyboardRemove, InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.dispatcher import FSMContext
 from states.states import DeleteProfileState, RegisterState, ProfileState
 from asyncio import sleep
-from inlines.default_inlines import default_inline
+from inlines.default_inlines import default_inline, verification_inline, profile_inline, error_inline
 from database.users import add_user, get_user, update_user, delete_user
 from database.groups import add_group, get_group, update_group
 
@@ -28,12 +28,7 @@ async def register(callback: types.CallbackQuery):
 
 async def get_fullname(message: types.Message, state: FSMContext):
     if await name_validation(message.text):
-        async with state.proxy() as data:
-            data['full_name'] = message.text
-        await RegisterState.next()
-        button = InlineKeyboardButton('Отмена', callback_data='/cancel')
-        inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
-        await message.answer('Введите номер группы: ', reply_markup=inline_buttons)
+        await get_group_number(message, state)
     else:
         button = InlineKeyboardButton('Отмена', callback_data='/cancel')
         inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
@@ -41,65 +36,64 @@ async def get_fullname(message: types.Message, state: FSMContext):
                              reply_markup=inline_buttons)
 
 
+async def get_group_number(message, state):
+    async with state.proxy() as data:
+        data['full_name'] = message.text
+    await RegisterState.next()
+    button = InlineKeyboardButton('Отмена', callback_data='/cancel')
+    inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
+    await message.answer('Введите номер группы: ', reply_markup=inline_buttons)
+
+
 async def retrieve_group(message: types.Message, state: FSMContext):
     if await group_validation(message.text):
         async with state.proxy() as data:
             data['group'] = int(message.text)
         await RegisterState.next()
-        button1 = InlineKeyboardButton('Да', callback_data='Да')
-        button2 = InlineKeyboardButton('Нет', callback_data='Нет')
-        button3 = InlineKeyboardButton('Отмена', callback_data='/cancel')
-        inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2).add(button3)
+        inline_buttons = await verification_inline()
         await message.answer('Хочешь ли ты отправлять задания?', reply_markup=inline_buttons)
     else:
-        await message.answer('Введите номер группы корректно. (Целое число от 1000 до 9999)')
+        await message.answer('Введите номер группы корректно. (Четырехзначное число от 0000 до 9999.)')
 
 
 async def get_is_sender(callback: types.CallbackQuery, state: FSMContext):
-    if await is_sender_validation(callback['data']):
-        async with state.proxy() as data:
-            data['is_sender'] = True if callback['data'] == 'Да' else False
-
-        async with state.proxy() as data:
-            data['user_id'] = callback.from_user.id
-            data['chat_id'] = callback.message.chat.id
-            await add_user(dict(data))
-            user = await get_user(data['user_id'])
-            group = await get_group(data['group'])
-            if group is None:
-                print(user['user_id'])
-                group_data = {
-                    'id': data['group'],
-                    'tasks': [],
-                    'students': [user['chat_id']],
-                }
-                if await add_group(group_data) == False:
-                    await delete_user(data['chat_id'])
-                    await state.finish()
-                    button = InlineKeyboardButton('Создать профиль', callback_data='/register')
-                    inline_buttons = InlineKeyboardMarkup(row_width=2)
-                    inline_buttons.add(button)
-                    await callback.message.answer('Введённая вами группа не существует.', reply_markup=inline_buttons)
-                    await callback.answer()
-                    return
-            else:
-                group['students'].append(user['chat_id'])
-                await update_group(data['group'], group)
-        if user:
-            await callback.message.answer('Регистрация прошла успешно!', reply_markup=ReplyKeyboardRemove())
-            await sleep(1)
-            inline_buttons = await default_inline(user)
-            await callback.message.answer('Выбери один из предложенных вариантов.', reply_markup=inline_buttons)
-            await callback.message.delete()
+    async with state.proxy() as data:
+        data['is_sender'] = True if callback['data'] == 'Да' else False
+    async with state.proxy() as data:
+        data['user_id'] = callback.from_user.id
+        data['chat_id'] = callback.message.chat.id
+        await add_user(dict(data))
+        user = await get_user(data['user_id'])
+        group = await get_group(data['group'])
+        if group is None:
+            print(user['user_id'])
+            group_data = {
+                'id': data['group'],
+                'tasks': [],
+                'students': [user['chat_id']],
+            }
+            if not await add_group(group_data):
+                await delete_user(data['chat_id'])
+                await state.finish()
+                button = InlineKeyboardButton('Создать профиль', callback_data='/register')
+                inline_buttons = InlineKeyboardMarkup(row_width=2)
+                inline_buttons.add(button)
+                await callback.message.answer('Введённая вами группа не существует.', reply_markup=inline_buttons)
+                await callback.answer()
+                return
         else:
-            button = InlineKeyboardButton('Создать профиль', callback_data='/register')
-            inline_buttons = InlineKeyboardMarkup(row_width=2)
-            inline_buttons.add(button)
-            await callback.message.answer('Неизвестная ошибка, повторите позже!', reply_markup=inline_buttons)
-        await state.finish()
-
+            group['students'].append(user['chat_id'])
+            await update_group(data['group'], group)
+    if user:
+        await callback.message.answer('Регистрация прошла успешно!', reply_markup=ReplyKeyboardRemove())
+        await sleep(1)
+        inline_buttons = await default_inline(user)
+        await callback.message.answer('Выбери один из предложенных вариантов.', reply_markup=inline_buttons)
+        await callback.message.delete()
     else:
-        await callback.message.answer('Выберите один из двух вариантов.')
+        inline_buttons = await error_inline()
+        await callback.message.answer('Неизвестная ошибка, повторите позже!', reply_markup=inline_buttons)
+    await state.finish()
 
 
 async def cancel_registration(callback: types.CallbackQuery, state: FSMContext):
@@ -114,11 +108,7 @@ async def cancel_registration(callback: types.CallbackQuery, state: FSMContext):
 
 async def get_user_profile(callback):
     user = await get_user(callback.from_user.id)
-    button1 = InlineKeyboardButton('Изменить профиль', callback_data='/update_profile')
-    button2 = InlineKeyboardButton('Удалить профиль', callback_data='/delete_profile')
-    button3 = InlineKeyboardButton('Главное меню', callback_data='/menu')
-    inline_buttons = InlineKeyboardMarkup(row_width=2)
-    inline_buttons.row(button1, button2).add(button3)
+    inline_buttons = await profile_inline()
     if type(callback) == types.Message:
         if user is None:
             return await start_registration_message(callback)
@@ -173,74 +163,60 @@ async def update_user_profile(callback: types.CallbackQuery):
 
 async def get_updated_fullname(message: types.Message, state: FSMContext):
     if await name_validation(message.text):
-        async with state.proxy() as data:
-            data['full_name'] = message.text
-        await ProfileState.next()
-        button = InlineKeyboardButton('Отмена', callback_data='/cancel')
-        inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
-        await message.answer('Введите номер группы: ', reply_markup=inline_buttons)
+        await get_group_number(message, state)
     else:
         await message.answer('Введите ФИО корректно в формате:\nФамилия Имя Отчество (при наличии).')
 
 
 async def retrieve_updated_group(message: types.Message, state: FSMContext):
-    if await group_validation(int(message.text)):
+    if await group_validation(message.text):
         async with state.proxy() as data:
             data['group'] = int(message.text)
         await ProfileState.next()
-        button1 = InlineKeyboardButton('Да', callback_data='Да')
-        button2 = InlineKeyboardButton('Нет', callback_data='Нет')
-        button3 = InlineKeyboardButton('Отмена', callback_data='/cancel')
-        inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2).add(button3)
+        inline_buttons = await verification_inline()
         await message.answer('Хочешь ли ты отправлять задания?', reply_markup=inline_buttons)
     else:
         await message.answer('Введите номер группы корректно.')
 
 
 async def get_updated_is_sender(callback: types.CallbackQuery, state: FSMContext):
-    if await is_sender_validation(callback['data']):
-        async with state.proxy() as data:
-            data['is_sender'] = True if callback['data'] == 'Да' else False
+    async with state.proxy() as data:
+        data['is_sender'] = True if callback['data'] == 'Да' else False
 
-        async with state.proxy() as data:
-            old_user = await get_user(callback.from_user.id)
-            await update_user(callback.from_user.id, dict(data))
-            user = await get_user(callback.from_user.id)
-            old_group = await get_group(old_user['group'])
-            group = await get_group(data['group'])
-            if group is None:
-                group_data = {
-                    'id': data['group'],
-                    'tasks': [],
-                    'students': [user['chat_id']]
-                }
-                del old_group['students'][old_group['students'].index(old_user['chat_id'])]
-                await update_group(old_user['group'], old_group)
-                await add_group(group_data)
-            else:
-                del old_group['students'][old_group['students'].index(old_user['chat_id'])]
-                await update_group(old_user['group'], old_group)
-                old_group['students'].append(user['chat_id'])
-                await update_group(data['group'], old_group)
-        if user:
-            await callback.message.answer('Данные успешно изменены!', reply_markup=ReplyKeyboardRemove())
-            await sleep(1)
-            button = InlineKeyboardButton('Меню', callback_data='/menu')
-            inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
-            await callback.message.answer(f'Новый профиль пользователя {callback.from_user.username}:\n \
-                ФИО: {user["full_name"]}\n \
-                Группа: {user["group"]}\n \
-                Доступ к отправлению заданий: {user["is_sender"]}', reply_markup=inline_buttons)
-            await callback.message.delete()
+    async with state.proxy() as data:
+        old_user = await get_user(callback.from_user.id)
+        await update_user(callback.from_user.id, dict(data))
+        user = await get_user(callback.from_user.id)
+        old_group = await get_group(old_user['group'])
+        group = await get_group(data['group'])
+        if group is None:
+            group_data = {
+                'id': data['group'],
+                'tasks': [],
+                'students': [user['chat_id']]
+            }
+            del old_group['students'][old_group['students'].index(old_user['chat_id'])]
+            await update_group(old_user['group'], old_group)
+            await add_group(group_data)
         else:
-            button = InlineKeyboardButton('Создать профиль', callback_data='/register')
-            inline_buttons = InlineKeyboardMarkup(row_width=2)
-            inline_buttons.add(button)
-            await callback.message.answer('Неизвестная ошибка, повторите позже!', reply_markup=inline_buttons)
-        await state.finish()
-
+            del old_group['students'][old_group['students'].index(old_user['chat_id'])]
+            await update_group(old_user['group'], old_group)
+            old_group['students'].append(user['chat_id'])
+            await update_group(data['group'], old_group)
+    if user:
+        await callback.message.answer('Данные успешно изменены!', reply_markup=ReplyKeyboardRemove())
+        await sleep(1)
+        button = InlineKeyboardButton('Меню', callback_data='/menu')
+        inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
+        await callback.message.answer(f'Новый профиль пользователя {callback.from_user.username}:\n \
+            ФИО: {user["full_name"]}\n \
+            Группа: {user["group"]}\n \
+            Доступ к отправлению заданий: {user["is_sender"]}', reply_markup=inline_buttons)
+        await callback.message.delete()
     else:
-        await callback.message.answer('Выберите один из двух вариантов.')
+        inline_buttons = await error_inline()
+        await callback.message.answer('Неизвестная ошибка, повторите позже!', reply_markup=inline_buttons)
+    await state.finish()
     await callback.answer()
 
 
@@ -275,7 +251,7 @@ async def get_verification(callback: types.CallbackQuery, state: FSMContext):
         user = await get_user(callback.from_user.id)
         await delete_user(callback.from_user.id)
         group = await get_group(user['group'])
-        del group['students'][group['students'].index(user)]
+        del group['students'][group['students'].index(user['user_id'])]
         await update_group(group['id'], group)
         if await get_user(callback.from_user.id) is None:
             button = InlineKeyboardButton('Создать профиль', callback_data='/register')
@@ -284,7 +260,8 @@ async def get_verification(callback: types.CallbackQuery, state: FSMContext):
             await callback.message.answer('Профиль был успешно удален.\nЕсли хотите, можете создать профиль заново:',
                                           reply_markup=inline_buttons)
         else:
-            inline_buttons = await default_inline(get_user(callback.from_user.id))
+            user = await get_user(callback.from_user.id)
+            inline_buttons = await default_inline(user)
             await callback.message.answer('Произошла ошибка, повторите позже', reply_markup=inline_buttons)
         await state.finish()
     else:

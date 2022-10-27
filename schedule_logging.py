@@ -19,8 +19,6 @@ async def schedule_check():
         finally:
             sleep(60)
 
+
 nest_asyncio.apply()
 asyncio.run(schedule_check())
-
-
-

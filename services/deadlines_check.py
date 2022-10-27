@@ -27,4 +27,3 @@ async def is_deadline(mode: int):
             await bot.send_message(chat_id=v, text=message, reply_markup=inline_buttons)
             count += 1
     return count
-

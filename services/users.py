@@ -12,14 +12,18 @@ async def name_validation(name: str) -> bool:
         return b
     return False
 
+
 async def group_validation(group: str) -> bool:
     try:
-        if 1000 <= int(group) <= 9999:
-            return True
-        else:
+        if len(group) != 4:
             return False
-    except:
+        for i in group:
+            if i not in '0123456789':
+                return False
+        return True
+    except TypeError:
         return False
+
 
 async def is_sender_validation(response: str) -> bool:
     if response in ['Да', 'Нет']:

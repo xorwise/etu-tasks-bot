@@ -1,7 +1,8 @@
 import datetime
-
+from aiogram import types
 from inlines.default_inlines import cancel_inline
 from database.users import get_user
+
 
 async def shorter_tasks(tasks: list) -> list:
     for i in range(len(tasks)):
@@ -39,7 +40,7 @@ async def filter_deadlines(deadlines: list) -> list:
     return filtered_deadlines
 
 
-async def get_tasks_with_offset(tasks: list, offset: int = 0):
+async def get_tasks_with_offset(tasks: list, offset: int = 0) -> list:
     new_tasks = []
     length = offset * 6 + 6 - len(tasks)
     if length < 0:
@@ -57,7 +58,7 @@ async def put_together_message(tasks: list, s: str = 'Вот ваши задан
     return s
 
 
-async def check_deadline(data, message):
+async def check_deadline(data: dict, message: types.Message) -> str | bool:
     try:
         data['deadline'] = str(datetime.datetime.strptime(message.text, '%d.%m.%Y').date())
     except ValueError:
@@ -72,7 +73,7 @@ async def check_deadline(data, message):
     return data['deadline']
 
 
-async def get_solution_message_together(task):
+async def get_solution_message_together(task: dict) -> str:
     s = 'Решений: {}\n'.format(len(task['solution']))
     if len(task['solution']) == 0:
         s = 'Решения не были найдены'
@@ -83,7 +84,7 @@ async def get_solution_message_together(task):
     return s
 
 
-async def get_solution_message(task, number):
+async def get_solution_message(task: dict, number: int) -> str:
     sender = await get_user(task['solution'][number]['sender'])
     s = f'Решение задания от {datetime.datetime.strptime(task["deadline"],"%Y-%m-%d").strftime("%d.%m.%Y")} по предмету {task["subject"]}:\n\n'
     s += f'Описание: {task["solution"][number]["description"]}\n\n'

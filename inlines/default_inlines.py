@@ -3,7 +3,7 @@ from database.groups import get_group
 from datetime import datetime
 
 
-async def default_inline(user):
+async def default_inline(user: dict) -> InlineKeyboardMarkup:
     if user['is_sender']:
         button1 = InlineKeyboardButton('Создать задание✅', callback_data='/create_task')
         button2 = InlineKeyboardButton('Показать задания📋', callback_data='/show_tasks')
@@ -18,7 +18,7 @@ async def default_inline(user):
     return inline_buttons
 
 
-async def subject_inline(group):
+async def subject_inline(group: int) -> InlineKeyboardMarkup:
     group = await get_group(group)
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     for i in range(1, len(group['subjects']), 2):
@@ -29,7 +29,7 @@ async def subject_inline(group):
     return inline_buttons
 
 
-async def choose_subject_inline(group):
+async def choose_subject_inline(group: int) -> InlineKeyboardMarkup:
     group = await get_group(group)
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     for i in range(1, len(group['subjects']), 2):
@@ -40,7 +40,7 @@ async def choose_subject_inline(group):
     return inline_buttons
 
 
-async def change_options(id):
+async def change_options(id: str) -> InlineKeyboardMarkup:
     button1 = InlineKeyboardButton('Описание', callback_data=f'/update_description?id={id}')
     button2 = InlineKeyboardButton('Изображения', callback_data=f'/update_photos?id={id}')
     button3 = InlineKeyboardButton('Дедлайн', callback_data=f'/update_deadline?id={id}')
@@ -49,7 +49,7 @@ async def change_options(id):
     return inline_buttons
 
 
-async def show_filter(user):
+async def show_filter(user: dict) -> InlineKeyboardMarkup:
     button1 = InlineKeyboardButton('По предмету', callback_data='/show_by_subject')
     button2 = InlineKeyboardButton('По дедлайну', callback_data='/show_by_deadline')
     button3 = InlineKeyboardButton('Показать все задания', callback_data='/show_by_group?offset=0')
@@ -122,7 +122,7 @@ async def cancel_inline():
     return inline_buttons
 
 
-async def task_options(id, task, user):
+async def task_options(id: str, task: dict, user: dict) -> InlineKeyboardMarkup:
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     button1 = InlineKeyboardButton('Изменить задание', callback_data=f'/update_task?id={id}')
     inline_buttons.add(button1)
@@ -137,7 +137,7 @@ async def task_options(id, task, user):
     return inline_buttons
 
 
-async def get_solution_inline(task):
+async def get_solution_inline(task: str) -> InlineKeyboardMarkup:
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     button1 = InlineKeyboardButton('Посмотреть решения', callback_data=f'/get_solutions?id={task}')
     button3 = InlineKeyboardButton('Посмотреть задание', callback_data=f'/get_task?id={task}')
@@ -146,7 +146,7 @@ async def get_solution_inline(task):
     return inline_buttons
 
 
-async def solutions_options(task, user):
+async def solutions_options(task: dict, user: dict) -> InlineKeyboardMarkup:
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     for i in range(len(task['solution'])):
         if i % 2 == 0:
@@ -159,7 +159,7 @@ async def solutions_options(task, user):
     return inline_buttons
 
 
-async def solution_options(task, user, number):
+async def solution_options(task: dict, user: dict, number: int) -> InlineKeyboardMarkup:
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     if user['user_id'] == task['solution'][number]['sender']:
         inline_buttons.add(InlineKeyboardButton('Изменить решение', callback_data=f'/update_solution?id={task["_id"]}?number={number}'))
@@ -171,9 +171,33 @@ async def solution_options(task, user, number):
     return inline_buttons
 
 
-async def update_solution_options(task, number):
+async def update_solution_options(task: str, number: int) -> InlineKeyboardMarkup:
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     inline_buttons.add(InlineKeyboardButton('Описание', callback_data=f'/update_sol_description?id={task}?number={number}'))
     inline_buttons.insert(InlineKeyboardButton('Изображения', callback_data=f'/update_sol_photos?id={task}?number={number}'))
     inline_buttons.add(InlineKeyboardButton('Завершить', callback_data=f'/get_solution?id={task}?number={number}'))
+    return inline_buttons
+
+
+async def verification_inline() -> InlineKeyboardMarkup:
+    button1 = InlineKeyboardButton('Да', callback_data='Да')
+    button2 = InlineKeyboardButton('Нет', callback_data='Нет')
+    button3 = InlineKeyboardButton('Отмена', callback_data='/cancel')
+    inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2).add(button3)
+    return inline_buttons
+
+
+async def profile_inline():
+    button1 = InlineKeyboardButton('Изменить профиль', callback_data='/update_profile')
+    button2 = InlineKeyboardButton('Удалить профиль', callback_data='/delete_profile')
+    button3 = InlineKeyboardButton('Главное меню', callback_data='/menu')
+    inline_buttons = InlineKeyboardMarkup(row_width=2)
+    inline_buttons.row(button1, button2).add(button3)
+    return inline_buttons
+
+
+async def error_inline() -> InlineKeyboardMarkup:
+    button = InlineKeyboardButton('Создать профиль', callback_data='/register')
+    inline_buttons = InlineKeyboardMarkup(row_width=2)
+    inline_buttons.add(button)
     return inline_buttons

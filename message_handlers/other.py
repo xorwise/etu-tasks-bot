@@ -49,7 +49,7 @@ async def command_menu(message: types.Message):
     await message.delete()
 
 
-async def is_message_user_none(message: types.Message, user):
+async def is_message_user_none(message: types.Message, user: dict) -> bool:
     if user is None:
         button = InlineKeyboardButton('Создать профиль', callback_data='/register')
         inline_buttons = InlineKeyboardMarkup(row_width=2)
@@ -64,7 +64,6 @@ async def support(message: types.Message):
     await message.delete()
     inline_buttons = InlineKeyboardMarkup(row_width=2).add(InlineKeyboardButton('Меню', callback_data='/menu'))
     await message.answer('По техническим вопросам писать @xorwise.', reply_markup=inline_buttons)
-
 
 
 def other_handlers_register(dp: Dispatcher):
