@@ -22,7 +22,7 @@ async def get_scheduled_tasks_inline(tasks: list) -> InlineKeyboardMarkup:
             inline_buttons.add(button1)
         else:
             button2 = InlineKeyboardButton(
-                f'{i + 2}) {tasks[i]["subject"]} {str(datetime.strptime(tasks[i + 1]["deadline"], "%Y-%m-%d").strftime("%d.%m"))} {weekdays.get(str(datetime.strptime(tasks[i + 1]["deadline"], "%Y-%m-%d").weekday()))}',
+                f'{i + 2}) {tasks[i + 1]["subject"]} {str(datetime.strptime(tasks[i + 1]["deadline"], "%Y-%m-%d").strftime("%d.%m"))} {weekdays.get(str(datetime.strptime(tasks[i + 1]["deadline"], "%Y-%m-%d").weekday()))}',
                 callback_data=f'/get_task?id={str(tasks[i + 1]["_id"])}')
             inline_buttons.row(button1, button2)
     inline_buttons.add(InlineKeyboardButton('Меню', callback_data='/menu'))

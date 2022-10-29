@@ -16,6 +16,7 @@ from database.tasks import add_task, get_task, patch_task, delete_task, get_task
 from aiogram.dispatcher.filters import Text
 from asyncio import sleep
 from .other import menu
+from aiogram.types.message import ContentType
 
 
 async def create_task(callback):
@@ -51,13 +52,14 @@ async def get_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
         data['photos'] = []
+        data['files'] = []
     await TaskState.next()
     button = InlineKeyboardButton('Пропустить', callback_data='/skip')
     inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
     button = InlineKeyboardButton('Отмена', callback_data='/cancel')
     inline_buttons.add(button)
     await message.answer(
-        'Отправьте фото и нажмите на кнопку: Пропустить\n Или нажмите на кнопку сразу, если отправлять фото нет '
+        'Отправьте фото или файлы и нажмите на кнопку: Пропустить\nИли нажмите на кнопку сразу, если отправлять нет '
         'необходимости.',
         reply_markup=inline_buttons)
 
@@ -65,6 +67,11 @@ async def get_description(message: types.Message, state: FSMContext):
 async def get_photos(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['photos'].append(message.photo[-1].file_id)
+
+
+async def get_files(message: types.Message, state: FSMContext):
+    async with state.proxy() as data:
+        data['files'].append(message.document.file_id)
 
 
 async def skip(callback: types.CallbackQuery, state: FSMContext):
@@ -132,11 +139,19 @@ async def retrieve_task(callback: types.CallbackQuery, state: FSMContext = None)
                                          f'Задание на {".".join(task["deadline"].split("-")[::-1])} по предмету {task["subject"]}:\n\nОписание: {task["description"]}\n\nОтправитель: {" ".join(user["full_name"].split()[:2])}')
             else:
                 media_group.attach_photo(task['photos'][i])
-
         await callback.message.answer_media_group(media_group)
+        media_group = types.MediaGroup()
+        if len(task['files']) != 0:
+            for i in range(len(task['files'])):
+                media_group.attach_document(task['files'][i])
+            await callback.message.answer_media_group(media_group)
     else:
         await callback.message.answer(
             f'Задание на {".".join(task["deadline"].split("-")[::-1])} по предмету {task["subject"]}:\n\nОписание: {task["description"]}\n\nОтправитель: {" ".join(user["full_name"].split()[:2])}')
+        if len(task['files']) != 0:
+            for i in range(len(task['files'])):
+                media_group.attach_document(task['files'][i])
+            await callback.message.answer_media_group(media_group)
 
     await callback.message.answer('Выберите один из предложенных вариантов: ', reply_markup=inline_buttons)
     await callback.answer()
@@ -155,7 +170,7 @@ async def update_description(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.message.answer('Введите новое описание: ')
     async with state.proxy() as data:
-        data['id'] = callback['data'].split('id=')[-1]
+        data['task_id'] = callback['data'].split('id=')[-1]
     await callback.answer()
 
 
@@ -163,7 +178,7 @@ async def post_new_description(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
         id = data['task_id']
-        del data['id']
+        del data['task_id']
         await patch_task(id, dict(data))
     await state.finish()
     await message.answer('Описание успешно изменено!')
@@ -201,10 +216,17 @@ async def update_photos(callback: types.CallbackQuery, state: FSMContext):
     await UpdateTaskState.photos.set()
     async with state.proxy() as data:
         data['id'] = callback['data'].split('id=')[-1]
-    await photo_verification(callback)
+    await file_verification(callback, 'изображения')
 
 
-async def get_verification(callback: types.CallbackQuery, state: FSMContext):
+async def update_files(callback: types.CallbackQuery, state: FSMContext):
+    await UpdateTaskState.files.set()
+    async with state.proxy() as data:
+        data['id'] = callback['data'].split('id=')[-1]
+    await file_verification(callback, 'файлы')
+
+
+async def get_photo_verification(callback: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
         if callback['data'] == 'Да':
             task = await get_task(data['id'])
@@ -220,6 +242,22 @@ async def get_verification(callback: types.CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
+async def get_files_verification(callback: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        if callback['data'] == 'Да':
+            task = await get_task(data['id'])
+            data['files'] = task['files']
+        else:
+            data['files'] = []
+        await callback.message.delete()
+        button = InlineKeyboardButton('Пропустить', callback_data='/skip')
+        inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
+        await callback.message.answer(
+            'Отправьте фото и нажмите на кнопку: Пропустить\n Или нажмите на кнопку сразу, если отправлять файлы нет необходимости.',
+            reply_markup=inline_buttons)
+    await callback.answer()
+
+
 async def update_skip(callback: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
         id = data['id']
@@ -227,7 +265,7 @@ async def update_skip(callback: types.CallbackQuery, state: FSMContext):
         await patch_task(id, dict(data))
 
     await state.finish()
-    await callback.message.answer('Изображения успешно изменены!')
+    await callback.message.answer('Задание успешно изменено!')
     await sleep(1)
     inline_buttons = await change_options(id)
     await callback.message.answer('Выберите параметры, которые хотите изменить.', reply_markup=inline_buttons)
@@ -369,12 +407,12 @@ async def add_description_solution(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['description'] = message.text
         data['photos'] = list()
+        data['files'] = list()
     await SolutionState.next()
     button = InlineKeyboardButton('Пропустить', callback_data='/skip')
     inline_buttons = InlineKeyboardMarkup(row_width=2).add(button).add(InlineKeyboardButton('Отмена', callback_data=f'/get_task?id={data["task_id"]}'))
     await message.answer(
-        'Отправьте фото и нажмите на кнопку: Пропустить\nИли нажмите на кнопку сразу, если отправлять фото нет '
-        'необходимости.',
+        'Отправьте фото и файлы и нажмите на кнопку: Пропустить\nИли нажмите на кнопку сразу, если отправлять нет необходимости.',
         reply_markup=inline_buttons)
 
 
@@ -384,6 +422,7 @@ async def skip_solution(callback: types.CallbackQuery, state: FSMContext):
         solution = {
             'description': data['description'],
             'photos': data['photos'],
+            'files': data['files'],
             'sender': callback.from_user.id
         }
         task['solution'].append(solution)
@@ -419,6 +458,7 @@ async def retrieve_solution(callback: types.CallbackQuery, state: FSMContext = N
     await callback.message.delete()
     if len(task['solution'][solution_number]['photos']) == 0:
         await callback.message.answer(message)
+        await is_files(callback, solution_number, task)
     else:
         media_group = types.MediaGroup()
         for i in range(len(task['solution'][solution_number]['photos'])):
@@ -427,8 +467,17 @@ async def retrieve_solution(callback: types.CallbackQuery, state: FSMContext = N
             else:
                 media_group.attach_photo(task['solution'][solution_number]['photos'][i])
         await callback.message.answer_media_group(media_group)
+        await is_files(callback, solution_number, task)
     await callback.message.answer('Выберите один из предложенных вариантов:', reply_markup=inline_buttons)
     await callback.answer()
+
+
+async def is_files(callback, solution_number, task):
+    if len(task['solution'][solution_number]['files']) != 0:
+        media_group = types.MediaGroup()
+        for i in range(len(task['solution'][solution_number]['files'])):
+            media_group.attach_document(task['solution'][solution_number]['files'][i])
+        await callback.message.answer_media_group(media_group)
 
 
 async def update_solution(callback: types.CallbackQuery):
@@ -464,15 +513,21 @@ async def post_updated_solution_description(message: types.Message, state: FSMCo
 async def update_solution_photos(callback: types.CallbackQuery, state: FSMContext):
     await UpdateSolutionState.photos.set()
     await get_basic_task_data(callback, state)
-    await photo_verification(callback)
+    await file_verification(callback, 'изображения')
 
 
-async def photo_verification(callback):
+async def update_solution_files(callback: types.CallbackQuery, state: FSMContext):
+    await UpdateSolutionState.files.set()
+    await get_basic_task_data(callback, state)
+    await file_verification(callback, 'файлы')
+
+
+async def file_verification(callback, given_type: str):
     button1 = InlineKeyboardButton('Да', callback_data='Да')
     button2 = InlineKeyboardButton('Нет', callback_data='Нет')
     inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2)
     await callback.message.delete()
-    await callback.message.answer('Вы хотите оставить старые изображения?', reply_markup=inline_buttons)
+    await callback.message.answer(f'Вы хотите оставить старые {given_type}?', reply_markup=inline_buttons)
     await callback.answer()
 
 
@@ -485,7 +540,7 @@ async def get_basic_task_data(callback, state):
     return task_id, solution_number
 
 
-async def get_solution_verification(callback: types.CallbackQuery, state: FSMContext):
+async def get_photo_solution_verification(callback: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
         if callback['data'] == 'Да':
             task = await get_task(data['task_id'])
@@ -501,15 +556,34 @@ async def get_solution_verification(callback: types.CallbackQuery, state: FSMCon
     await callback.answer()
 
 
+async def get_files_solution_verification(callback: types.CallbackQuery, state: FSMContext):
+    async with state.proxy() as data:
+        if callback['data'] == 'Да':
+            task = await get_task(data['task_id'])
+            data['files'] = task['solution'][data['number']]['files']
+        else:
+            data['files'] = []
+        await callback.message.delete()
+        button = InlineKeyboardButton('Пропустить', callback_data='/skip')
+        inline_buttons = InlineKeyboardMarkup(row_width=2).add(button)
+        await callback.message.answer(
+            'Отправьте фото и нажмите на кнопку: Пропустить\n Или нажмите на кнопку сразу, если отправлять файлы нет необходимости.',
+            reply_markup=inline_buttons)
+    await callback.answer()
+
+
 async def update_solution_skip(callback: types.CallbackQuery, state: FSMContext):
     async with state.proxy() as data:
         task = await get_task(data['task_id'])
         del task['_id']
-        task['solution'][data['number']]['photos'] = data['photos']
+        if data.get('photos') is not None:
+            task['solution'][data['number']]['photos'] = data['photos']
+        if data.get('files') is not None:
+            task['solution'][data['number']]['files'] = data['files']
         await patch_task(data['task_id'], task)
         inline_buttons = await update_solution_options(data['task_id'], data['number'])
     await state.finish()
-    await callback.message.answer('Изображения успешно изменены!')
+    await callback.message.answer('Решение успешно изменено!')
     await sleep(1)
     await callback.message.answer('Выберите параметры, которые хотите изменить.', reply_markup=inline_buttons)
     await callback.answer()
@@ -563,6 +637,7 @@ def tasks_handlers_register(dp: Dispatcher):
     dp.register_callback_query_handler(get_subject, state=TaskState.subject)
     dp.register_message_handler(get_description, state=TaskState.description)
     dp.register_message_handler(get_photos, content_types=['photo'], state=[TaskState.photos, SolutionState.photos, UpdateTaskState, UpdateSolutionState])
+    dp.register_message_handler(get_files, content_types=ContentType.DOCUMENT, state=[TaskState.photos, SolutionState.photos, UpdateTaskState, UpdateSolutionState])
     dp.register_callback_query_handler(skip, text='/skip', state=TaskState.photos)
     dp.register_callback_query_handler(get_is_solvable, text=['Да', 'Нет'], state=TaskState.is_solvable)
     dp.register_message_handler(get_deadline, state=TaskState.deadline)
@@ -573,8 +648,10 @@ def tasks_handlers_register(dp: Dispatcher):
     dp.register_callback_query_handler(update_deadline, Text(startswith='/update_deadline?id='), state=None)
     dp.register_message_handler(post_new_deadline, state=UpdateTaskState.deadline)
     dp.register_callback_query_handler(update_photos, Text(startswith='/update_photos?id='), state=None)
-    dp.register_callback_query_handler(get_verification, text=['Да', 'Нет'], state=UpdateTaskState.photos)
-    dp.register_callback_query_handler(update_skip, text='/skip', state=UpdateTaskState.photos)
+    dp.register_callback_query_handler(update_files, Text(startswith='/update_files?id='), state=None)
+    dp.register_callback_query_handler(get_photo_verification, text=['Да', 'Нет'], state=UpdateTaskState.photos)
+    dp.register_callback_query_handler(get_files_verification, text=['Да', 'Нет'], state=UpdateTaskState.files)
+    dp.register_callback_query_handler(update_skip, text='/skip', state=[UpdateTaskState.photos, UpdateTaskState.files])
     dp.register_callback_query_handler(finish, Text(startswith='/finish?id='))
     dp.register_callback_query_handler(remove_task, Text(startswith='/remove_task?id='))
     dp.register_callback_query_handler(verify_removal, Text(contains='verify_removal'))
@@ -595,8 +672,10 @@ def tasks_handlers_register(dp: Dispatcher):
     dp.register_callback_query_handler(update_solution_description, Text(startswith='/update_sol_description?id='), state=None)
     dp.register_message_handler(post_updated_solution_description, state=UpdateSolutionState.description)
     dp.register_callback_query_handler(update_solution_photos, Text(startswith='/update_sol_photos?id='), state=None)
-    dp.register_callback_query_handler(get_solution_verification, text=['Да', 'Нет'], state=UpdateSolutionState.photos)
-    dp.register_callback_query_handler(update_solution_skip, text='/skip', state=UpdateSolutionState.photos)
+    dp.register_callback_query_handler(update_solution_files, Text(startswith='/update_sol_files?id='), state=None)
+    dp.register_callback_query_handler(get_photo_solution_verification, text=['Да', 'Нет'], state=UpdateSolutionState.photos)
+    dp.register_callback_query_handler(get_files_solution_verification, text=['Да', 'Нет'], state=UpdateSolutionState.files)
+    dp.register_callback_query_handler(update_solution_skip, text='/skip', state=[UpdateSolutionState.photos, UpdateSolutionState.files])
     dp.register_callback_query_handler(cancel_solution_update, Text(startswith='/cancel_sol_update?id='), state=[None, UpdateSolutionState])
     dp.register_callback_query_handler(delete_solution, Text(startswith='/remove_solution?id='), state=None)
     dp.register_callback_query_handler(get_delete_verification, text=['/verify', '/cancel'], state=DeleteSolutionState)

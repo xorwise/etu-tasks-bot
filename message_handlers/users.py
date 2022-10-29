@@ -224,7 +224,7 @@ async def cancel_profile_edit(callback: types.CallbackQuery, state: FSMContext):
     user = await get_user(callback.from_user.id)
     button1 = InlineKeyboardButton('Изменить профиль', callback_data='/update_profile')
     button2 = InlineKeyboardButton('Удалить профиль', callback_data='/delete_profile')
-    button3 = InlineKeyboardButton('Главное меню', callback_data='/menu')
+    button3 = InlineKeyboardButton('Меню', callback_data='/menu')
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     inline_buttons.row(button1, button2).add(button3)
 

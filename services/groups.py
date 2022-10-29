@@ -1,6 +1,8 @@
 import json
 import requests
 
+from database.users import get_user
+
 
 async def get_group_id(group: int) -> int:
     with open('groups.json', 'r') as f:
@@ -25,3 +27,19 @@ async def get_subject_list(id: int) -> list:
     for i in response[0]['scheduleObjects']:
         subjects.add(i['lesson']['subject']['shortTitle'])
     return list(subjects)
+
+
+async def put_message_together(id, names) -> str:
+    s = f'Номер группы: {id}\n\n'
+    for i, name in enumerate(names):
+        n = ' '.join(name.split(' ')[:2])
+        s += f'{i + 1}) {n}\n'
+    return s
+
+
+async def get_students(group: dict) -> list[str]:
+    names = list()
+    for student in group.get('students'):
+        user = await get_user(student)
+        names.append(user.get('full_name'))
+    return names

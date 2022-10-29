@@ -8,13 +8,15 @@ async def default_inline(user: dict) -> InlineKeyboardMarkup:
         button1 = InlineKeyboardButton('Создать задание✅', callback_data='/create_task')
         button2 = InlineKeyboardButton('Показать задания📋', callback_data='/show_tasks')
         button3 = InlineKeyboardButton('Показать профиль👨', callback_data='/get_profile')
+        button4 = InlineKeyboardButton('Показать группу🏫', callback_data='/get_group')
         inline_buttons = InlineKeyboardMarkup(row_width=2)
-        inline_buttons.row(button1, button2).add(button3)
+        inline_buttons.row(button1, button2).row(button3, button4)
     else:
         button2 = InlineKeyboardButton('Показать задания📋', callback_data='/show_tasks')
         button3 = InlineKeyboardButton('Показать профиль👨', callback_data='/get_profile')
+        button4 = InlineKeyboardButton('Показать группу🏫', callback_data='/get_group')
         inline_buttons = InlineKeyboardMarkup(row_width=2)
-        inline_buttons.add(button2).add(button3)
+        inline_buttons.add(button2).row(button3, button4)
     return inline_buttons
 
 
@@ -43,9 +45,10 @@ async def choose_subject_inline(group: int) -> InlineKeyboardMarkup:
 async def change_options(id: str) -> InlineKeyboardMarkup:
     button1 = InlineKeyboardButton('Описание', callback_data=f'/update_description?id={id}')
     button2 = InlineKeyboardButton('Изображения', callback_data=f'/update_photos?id={id}')
+    button = InlineKeyboardButton('Файлы', callback_data=f'/update_files?id={id}')
     button3 = InlineKeyboardButton('Дедлайн', callback_data=f'/update_deadline?id={id}')
     button4 = InlineKeyboardButton('Завершить', callback_data=f'/finish?id={id}')
-    inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2).row(button3, button4)
+    inline_buttons = InlineKeyboardMarkup(row_width=2).row(button1, button2).row(button3, button).add(button4)
     return inline_buttons
 
 
@@ -175,7 +178,8 @@ async def update_solution_options(task: str, number: int) -> InlineKeyboardMarku
     inline_buttons = InlineKeyboardMarkup(row_width=2)
     inline_buttons.add(InlineKeyboardButton('Описание', callback_data=f'/update_sol_description?id={task}?number={number}'))
     inline_buttons.insert(InlineKeyboardButton('Изображения', callback_data=f'/update_sol_photos?id={task}?number={number}'))
-    inline_buttons.add(InlineKeyboardButton('Завершить', callback_data=f'/get_solution?id={task}?number={number}'))
+    inline_buttons.add(InlineKeyboardButton('Файлы', callback_data=f'/update_sol_files?id={task}?number={number}'))
+    inline_buttons.insert(InlineKeyboardButton('Завершить', callback_data=f'/get_solution?id={task}?number={number}'))
     return inline_buttons
 
 

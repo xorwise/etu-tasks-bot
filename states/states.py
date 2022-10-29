@@ -28,6 +28,7 @@ class TaskState(StatesGroup):
 class UpdateTaskState(StatesGroup):
     description = State()
     photos = State()
+    files = State()
     deadline = State()
 
 
@@ -45,6 +46,7 @@ class SolutionState(StatesGroup):
 class UpdateSolutionState(StatesGroup):
     description = State()
     photos = State()
+    files = State()
     verification = State()
 
 

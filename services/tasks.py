@@ -11,6 +11,7 @@ async def shorter_tasks(tasks: list) -> list:
             'subject': tasks[i]['subject'],
             'description': tasks[i]['description'][:20] + '...' if len(tasks[i]['description']) > 20 else tasks[i]['description'],
             'photos': len(tasks[i]['photos']),
+            'files': len(tasks[i]['files']),
             'deadline': '.'.join(tasks[i]['deadline'].split('-')[::-1])
         }
     return tasks
@@ -54,11 +55,11 @@ async def put_together_message(tasks: list, s: str = 'Вот ваши задан
     if len(tasks) == 0:
         s = 'Задания не были найдены.'
     for i in range(len(tasks)):
-        s += f'{i + 1}) {tasks[i]["subject"]} на {tasks[i]["deadline"]}\nОписание: {tasks[i]["description"]}\nИзображений: {tasks[i]["photos"]}\n\n'
+        s += f'{i + 1}) {tasks[i]["subject"]} на {tasks[i]["deadline"]}\nОписание: {tasks[i]["description"]}\nИзображений: {tasks[i]["photos"]}\nФайлов: {tasks[i]["files"]}\n\n'
     return s
 
 
-async def check_deadline(data: dict, message: types.Message) -> str | bool:
+async def check_deadline(data: dict, message: types.Message):
     try:
         data['deadline'] = str(datetime.datetime.strptime(message.text, '%d.%m.%Y').date())
     except ValueError:
