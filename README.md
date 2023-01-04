@@ -1,6 +1,6 @@
-## Телеграм бот-дневник для контроля заданий у студентов университета.
+## Telegram-bot - school journal for Saint-Petersburg's governmental electro-technical university (ETU)..
 
-- Бот разработан для Санкт-Петербургского Государственного Электро-Технического Университета (ЛЭТИ).
+- Bot has been developed using asynchronous python framework aiogram.
 
 Пример работы: 
 
