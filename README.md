@@ -1,5 +1,5 @@
 ## Telegram-bot - school journal for Saint-Petersburg's governmental electro-technical university (ETU)..
-
+- This is abfuscated public version of the bot!
 - Bot has been developed using asynchronous python framework aiogram.
 
 Example of work: 
